@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>애플뮤직 메이커</title>
+<title>뮤직 메이커</title>
 <style>
 :root{--bg:#f2f2f4;--pn:#fff;--tx:#1c1c1e;--mu:#8e8e93;--ln:#e0e0e5;--ac:#fa2d48}
 @media(prefers-color-scheme:dark){:root{--bg:#0e0e10;--pn:#1c1c1e;--tx:#f2f2f7;--mu:#98989f;--ln:#38383a}}
@@ -354,13 +354,47 @@ $('#creset').onclick=()=>{S.cv={x:0,y:0,z:1,r:0,rad:S.cv.rad};save();syncCtl();p
 $('#m1').onclick=()=>{S.mode='solid';save();syncCtl();applyTheme()};
 $('#m2').onclick=()=>{S.mode='grad';save();syncCtl();applyTheme()};
 document.querySelectorAll('.lang .btn').forEach(b=>b.onclick=()=>{S.lang=b.dataset.l;document.documentElement.lang=S.lang;save();renderAll()});
+/* ---- 이미지 저장 ----
+ html2canvas는 mask-image·SVG 아이콘·그림자·변형된 배경을 제대로 못 그려서,
+ 브라우저가 직접 그리는 SVG foreignObject 방식으로 저장하고 실패하면 html2canvas로 대체해요. */
+async function snapNative(){
+ const W=393,H=852,SC=2,p=$('#phone');
+ tick(true);
+ const st=$('#lyr').scrollTop;
+ const cl=p.cloneNode(true);
+ cl.style.transform='none';cl.classList.add('cap');
+ const li=cl.querySelector('#lyr .in');if(li)li.style.transform='translateY('+(-st)+'px)';
+ const al=cl.querySelector('#aList');if(al)al.style.overflow='hidden';
+ const wrap=document.createElement('div');
+ wrap.setAttribute('style','width:'+W+'px;height:'+H+'px;margin:0;--ac:'+S.ac+';font:15px/1.5 "Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif');
+ const stl=document.createElement('style');stl.textContent=document.querySelector('style').textContent;
+ wrap.appendChild(stl);wrap.appendChild(cl);
+ const xml=new XMLSerializer().serializeToString(wrap);
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W*SC+'" height="'+H*SC+'" viewBox="0 0 '+W+' '+H+'"><foreignObject x="0" y="0" width="'+W+'" height="'+H+'">'+xml+'</foreignObject></svg>';
+ const im=new Image();
+ await new Promise((ok,no)=>{im.onload=ok;im.onerror=()=>no(new Error('svg load'));im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)});
+ try{await im.decode()}catch(e){}
+ const c=document.createElement('canvas');c.width=W*SC;c.height=H*SC;const x=c.getContext('2d');
+ const draw=()=>{x.clearRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height)};
+ draw();
+ /* 사파리는 첫 렌더에서 내부 이미지가 비는 경우가 있어 한 번 더 그려요 */
+ if(/^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent)){await new Promise(r=>setTimeout(r,150));draw();await new Promise(r=>setTimeout(r,150));draw()}
+ return c.toDataURL('image/png');
+}
+async function snapH2C(){
+ if(!window.html2canvas)return null;
+ const p=$('#phone'),tf=p.style.transform;p.classList.add('cap');p.style.transform='none';
+ try{const c=await html2canvas(p,{scale:2,backgroundColor:null,useCORS:true});return c.toDataURL('image/png')}
+ catch(e){return null}
+ finally{p.classList.remove('cap');p.style.transform=tf}
+}
 $('#shot').onclick=async()=>{
- if(!window.html2canvas){alert(T('이미지 저장 도구를 불러오지 못했어요. 인터넷 연결을 확인하세요.'));return}
- const p=$('#phone'),v=document.querySelector('.view.on').id,tf=p.style.transform;p.classList.add('cap');p.style.transform='none';
- try{const c=await html2canvas(p,{scale:2,backgroundColor:null,useCORS:true});
-  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=(v==='aView'?'album':'player')+'.png';a.click()}
- catch(e){alert(T('이미지 저장 도구를 불러오지 못했어요. 인터넷 연결을 확인하세요.'))}
- finally{p.classList.remove('cap');p.style.transform=tf}};
+ const v=document.querySelector('.view.on').id;let url=null;
+ try{url=await snapNative()}catch(e){console.warn('native capture failed',e)}
+ if(!url)url=await snapH2C();
+ if(!url){alert(T('이미지 저장 도구를 불러오지 못했어요. 인터넷 연결을 확인하세요.'));return}
+ const a=document.createElement('a');a.href=url;a.download=(v==='aView'?'album':'player')+'.png';a.click();
+};
 document.querySelectorAll('.mtabs .btn').forEach(b=>b.onclick=()=>{document.body.classList.toggle('m-ed',b.dataset.m==='ed');
  document.querySelectorAll('.mtabs .btn').forEach(x=>x.classList.toggle('on',x===b));scrollTo(0,0);fit()});
 ['sbt','sbb'].forEach(k=>$('#'+k).oninput=e=>{S[k]=e.target.value;save();renderAlbum()});
